@@ -1,4 +1,4 @@
-# earthquake-ml-pipeline
+# Earthquake ML Pipeline
 
 > Pipeline completo de Machine Learning para classificação de risco e predição de magnitude de terremotos com MLflow no Databricks
 
@@ -6,11 +6,12 @@
 ![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white)
 ![Apache Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?style=for-the-badge&logo=apachespark&logoColor=white)
 ![Delta Lake](https://img.shields.io/badge/Delta_Lake-003366?style=for-the-badge&logo=delta&logoColor=white)
+![Unity Catalog](https://img.shields.io/badge/Unity_Catalog-0194E2?style=for-the-badge&logo=databricks&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 
 ---
 
-## Sobre o projeto
+## 📌 Sobre o projeto
 
 Pipeline end-to-end de Machine Learning que utiliza **28.700 eventos sísmicos reais** da API USGS (13 meses de histórico) para treinar modelos de classificação de risco e regressão de magnitude. O pipeline cobre desde a coleta de dados e feature engineering até o registro de modelos no MLflow Registry e inferência em batch, tudo dentro do ecossistema Databricks com Unity Catalog.
 
@@ -46,14 +47,14 @@ Pipeline end-to-end de Machine Learning que utiliza **28.700 eventos sísmicos r
            │
            ▼
 [04_model_evaluation.py]
-  • Matriz de confusão
-  • Feature Importance
-  • MLflow Registry (v1)
+  • Carrega modelos do MLflow Registry
+  • Matriz de confusão + Feature Importance
+  • Registra versão final (v1)
            │
            ▼
 [05_batch_inference.py]
-  • 28.700 predições
-  • gold.ml_predictions
+  • Carrega modelos do Registry
+  • 28.700 predições → gold.ml_predictions
   • Acurácia por classe
 ```
 
@@ -130,12 +131,30 @@ dmin            █████                                          5.2%
 
 ```
 earthquake-ml-pipeline/
+├── databricks.yml              # Databricks Asset Bundle — Job de treino completo
 ├── 00_data_collection.py       # Coleta histórica 13 meses USGS
 ├── 01_feature_engineering.py   # 19 features + Feature Store Delta
 ├── 02_exploratory_analysis.py  # EDA + correlações + 4 gráficos
 ├── 03_model_training.py        # 5 modelos com MLflow tracking
 ├── 04_model_evaluation.py      # Avaliação + Feature Importance + Registry
-└── 05_batch_inference.py       # 28.700 predições → gold.ml_predictions
+└── 05_batch_inference.py       # Carrega do Registry + 28.700 predições
+```
+
+---
+
+## Databricks Job
+
+O pipeline completo está configurado como **Databricks Job** via Asset Bundle (`databricks.yml`):
+
+```
+data_collection → feature_engineering → model_training → model_evaluation → batch_inference
+```
+
+Para fazer o deploy:
+
+```bash
+databricks bundle deploy
+databricks bundle run earthquake_ml_pipeline
 ```
 
 ---
@@ -149,6 +168,13 @@ earthquake-magnitude-regressor   v1  ✅  (RandomForestRegressor)
 
 Ambos os modelos são Spark ML Pipelines completos:
 `VectorAssembler → StandardScaler → RandomForest`
+
+Os notebooks `04_model_evaluation.py` e `05_batch_inference.py` carregam os modelos diretamente do Registry:
+
+```python
+model_clf = mlflow.spark.load_model(f"models:/earthquake-risk-classifier/latest")
+model_reg = mlflow.spark.load_model(f"models:/earthquake-magnitude-regressor/latest")
+```
 
 ---
 
@@ -185,6 +211,7 @@ Eventos extremos têm natureza caótica — difícil de prever com features est�
 | **Spark ML** | Pipeline, VectorAssembler, StandardScaler |
 | **RandomForestClassifier** | Classificação multiclasse |
 | **RandomForestRegressor** | Regressão de magnitude |
+| **Databricks Asset Bundles** | Orquestração do pipeline como código |
 | **Delta Lake** | Feature Store + Predictions table |
 | **USGS Earthquake API** | 28.700 eventos reais |
 
@@ -195,50 +222,52 @@ Eventos extremos têm natureza caótica — difícil de prever com features est�
 ### Pré-requisitos
 - Conta no [Databricks Free Edition](https://www.databricks.com/try-databricks)
 - Unity Catalog habilitado
+- Databricks CLI instalado e configurado
 - Projeto `earthquake-streaming-pipeline` executado (tabelas Bronze/Silver)
 
 ### Passo a passo
 
 ```bash
-# 1. Execute a coleta histórica (demora ~5 min — respeita rate limit USGS)
-00_data_collection.py
+# 1. Clone o repositório
+git clone https://github.com/hiazevedo/earthquake-ml-pipeline.git
+cd earthquake-ml-pipeline
 
-# 2. Crie as features
-01_feature_engineering.py
+# 2. Deploy via Asset Bundle
+databricks bundle deploy
 
-# 3. Analise os dados (opcional mas recomendado)
-02_exploratory_analysis.py
-
-# 4. Treine os modelos
-03_model_training.py
-
-# 5. Avalie e registre no MLflow
-04_model_evaluation.py
-
-# 6. Rode a inferência em batch
-05_batch_inference.py
+# 3. Execute o job completo
+databricks bundle run earthquake_ml_pipeline
 ```
 
-### Configuração do MLflow para Serverless
+Ou execute os notebooks manualmente na ordem:
 
-```python
-# Obrigatório para Databricks Serverless
-import os
-os.environ["MLFLOW_DFS_TMP"] = "/Volumes/earthquake_pipeline/bronze/mlflow_tmp"
+```
+00_data_collection.py       # Coleta histórica (~5 min, respeita rate limit USGS)
+01_feature_engineering.py   # Cria features e Feature Store
+02_exploratory_analysis.py  # EDA (opcional mas recomendado)
+03_model_training.py        # Treina e registra modelos no MLflow
+04_model_evaluation.py      # Avalia modelos carregados do Registry
+05_batch_inference.py       # Inferência em batch → gold.ml_predictions
+```
 
-# Criar o volume antes de usar:
-spark.sql("CREATE VOLUME IF NOT EXISTS earthquake_pipeline.bronze.mlflow_tmp")
+### Unity Catalog
+
+```
+Catalog : earthquake_pipeline
+Schemas : bronze | silver | gold
+Volume  : /Volumes/earthquake_pipeline/bronze/raw_json
 ```
 
 ---
 
-## Projetos relacionados
+## Portfólio
 
-Este projeto faz parte de uma série de 2 projetos:
+Este projeto faz parte do [Databricks Data Engineering Portfolio](https://github.com/hiazevedo/databricks-portfolio), uma série de projetos práticos cobrindo o ciclo completo de engenharia de dados com Databricks.
 
-| # | Projeto | Skills |
-|---|---------|--------|
-| 1 | [earthquake-streaming-pipeline](../earthquake-streaming-pipeline) | Streaming, Auto Loader, Alertas |
-| 2 | **earthquake-ml-pipeline** ← você está aqui | ML, MLflow, Feature Engineering |
-
----
+| # | Projeto | Tema |
+|---|---------|------|
+| 1 | [fuel-price-pipeline-br](https://github.com/hiazevedo/fuel-price-pipeline-br) | Batch · Medallion · ANP |
+| 2 | [earthquake-streaming-pipeline](https://github.com/hiazevedo/earthquake-streaming-pipeline) | Streaming · Auto Loader · USGS |
+| 3 | **earthquake-ml-pipeline** ← você está aqui | ML · MLflow · Spark ML |
+| 4 | [weather-dlt-pipeline](https://github.com/hiazevedo/weather-dlt-pipeline) | DLT · Workflows · Open-Meteo |
+| 5 | [weather-ml-rain-forecast](https://github.com/hiazevedo/weather-ml-rain-forecast) | ML Avançado · Previsão de Chuva |
