@@ -1,0 +1,54 @@
+bundle:
+  name: earthquake-ml-pipeline
+
+workspace:
+  host: https://dbc-4755d9a9-d11b.cloud.databricks.com
+  root_path: ~/.bundle/${bundle.name}/${bundle.target}
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Shared/earthquake-ml-pipeline
+
+resources:
+  jobs:
+    earthquake_ml_full_pipeline:
+      name: "[earthquake-ml] Pipeline Completo (manual)"
+      tasks:
+        - task_key: data_collection
+          notebook_task:
+            notebook_path: ${workspace.file_path}/00_data_collection
+            source: WORKSPACE
+
+        - task_key: feature_engineering
+          depends_on:
+            - task_key: data_collection
+          notebook_task:
+            notebook_path: ${workspace.file_path}/01_feature_engineering
+            source: WORKSPACE
+
+        - task_key: model_training
+          depends_on:
+            - task_key: feature_engineering
+          notebook_task:
+            notebook_path: ${workspace.file_path}/03_model_training
+            source: WORKSPACE
+
+        - task_key: model_evaluation
+          depends_on:
+            - task_key: model_training
+          notebook_task:
+            notebook_path: ${workspace.file_path}/04_model_evaluation
+            source: WORKSPACE
+
+        - task_key: batch_inference
+          depends_on:
+            - task_key: model_evaluation
+          notebook_task:
+            notebook_path: ${workspace.file_path}/05_batch_inference
+            source: WORKSPACE

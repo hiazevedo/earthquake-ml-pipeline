@@ -3,12 +3,6 @@ import mlflow
 import mlflow.spark
 import os
 from pyspark.sql import functions as F
-from pyspark.ml import PipelineModel
-
-from pyspark.ml import Pipeline
-from pyspark.ml.feature import VectorAssembler, StandardScaler
-from pyspark.ml.classification import RandomForestClassifier
-from pyspark.ml.regression import RandomForestRegressor
 
 # COMMAND ----------
 
@@ -38,40 +32,19 @@ print(f"   Destino : {PREDICTIONS_TABLE}")
 
 # COMMAND ----------
 
-# Retreinar modelos finais para inferência
+# Carregar modelos do MLflow Registry para batch inference
 
-print("Treinando modelos finais para batch inference...\n")
+MODEL_NAME_CLF = "earthquake-risk-classifier"
+MODEL_NAME_REG = "earthquake-magnitude-regressor"
 
-df = spark.table(FEATURE_TABLE) \
-          .dropna(subset=ML_FEATURES + ["risk_level_enc", "magnitude"]) \
-          .withColumn("risk_level_enc", F.col("risk_level_enc").cast("double"))
+print("Carregando modelos do MLflow Registry...\n")
 
-# Usar 100% dos dados para treino do modelo final de produção
-train_df, _ = df.randomSplit([0.8, 0.2], seed=42)
+model_clf = mlflow.spark.load_model(f"models:/{MODEL_NAME_CLF}/latest")
+model_reg = mlflow.spark.load_model(f"models:/{MODEL_NAME_REG}/latest")
 
-assembler = VectorAssembler(
-    inputCols=ML_FEATURES, outputCol="features_raw", handleInvalid="skip"
-)
-scaler = StandardScaler(
-    inputCol="features_raw", outputCol="features",
-    withMean=True, withStd=True
-)
-
-# Classificador
-rf_clf   = RandomForestClassifier(
-    labelCol="risk_level_enc", featuresCol="features",
-    numTrees=100, maxDepth=10, seed=42
-)
-model_clf = Pipeline(stages=[assembler, scaler, rf_clf]).fit(train_df)
-
-# Regressor
-rf_reg   = RandomForestRegressor(
-    labelCol="magnitude", featuresCol="features",
-    numTrees=100, maxDepth=10, seed=42
-)
-model_reg = Pipeline(stages=[assembler, scaler, rf_reg]).fit(train_df)
-
-print(f"Modelos treinados com {train_df.count():,} registros")
+print(f"Modelos carregados")
+print(f"   Classificador : {MODEL_NAME_CLF}")
+print(f"   Regressor     : {MODEL_NAME_REG}")
 
 # COMMAND ----------
 

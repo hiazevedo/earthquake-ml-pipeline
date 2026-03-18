@@ -205,7 +205,7 @@ evaluator_r2 = RegressionEvaluator(
     predictionCol = "prediction",
     metricName    = "r2"
 )
-B
+
 regressores = {
     "RandomForest_Regressor": RandomForestRegressor(
         labelCol    = TARGET_REG,

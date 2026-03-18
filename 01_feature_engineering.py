@@ -64,8 +64,7 @@ df_features = (
          .when(F.col("geo_region") == "South America",     3)
          .when(F.col("geo_region") == "Oceania",           4)
          .when(F.col("geo_region") == "Europe",            5)
-         .when(F.col("geo_region") == "Africa & Middle East", 6)
-         .otherwise(7))
+         .otherwise(6))
 
     # Label encoding de depth_class
     .withColumn("depth_class_enc",

@@ -6,10 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 import pandas as pd
-from pyspark.ml import Pipeline, PipelineModel
-from pyspark.ml.feature import VectorAssembler, StandardScaler
-from pyspark.ml.classification import RandomForestClassifier
-from pyspark.ml.regression import RandomForestRegressor
 from pyspark.ml.evaluation import (
     MulticlassClassificationEvaluator,
     RegressionEvaluator
@@ -51,45 +47,31 @@ print("Configurações carregadas")
 
 # COMMAND ----------
 
-# Retreinar o melhor modelo e gerar predições completas
+# Carregar modelos registrados do MLflow Registry
 
-print("Retreinando RandomForest (melhor modelo)...\n")
+MODEL_NAME_CLF = "earthquake-risk-classifier"
+MODEL_NAME_REG = "earthquake-magnitude-regressor"
 
+print("Carregando modelos do MLflow Registry...\n")
+
+model_clf = mlflow.spark.load_model(f"models:/{MODEL_NAME_CLF}/latest")
+model_reg = mlflow.spark.load_model(f"models:/{MODEL_NAME_REG}/latest")
+
+# Conjunto de teste para avaliação (mesmo seed do treinamento)
 df = spark.table(FEATURE_TABLE) \
           .dropna(subset=ML_FEATURES + [TARGET_CLASS, TARGET_REG]) \
           .withColumn(TARGET_CLASS, F.col(TARGET_CLASS).cast("double"))
 
 train_df, test_df = df.randomSplit([0.8, 0.2], seed=42)
 
-assembler = VectorAssembler(
-    inputCols=ML_FEATURES, outputCol="features_raw", handleInvalid="skip"
-)
-scaler = StandardScaler(
-    inputCol="features_raw", outputCol="features",
-    withMean=True, withStd=True
-)
+pred_clf = model_clf.transform(test_df)
+pred_reg = model_reg.transform(test_df) \
+                     .withColumnRenamed("prediction", "pred_magnitude")
 
-# Melhor modelo de classificação
-rf_clf = RandomForestClassifier(
-    labelCol=TARGET_CLASS, featuresCol="features",
-    numTrees=100, maxDepth=10, seed=42
-)
-pipeline_clf = Pipeline(stages=[assembler, scaler, rf_clf])
-model_clf    = pipeline_clf.fit(train_df)
-pred_clf     = model_clf.transform(test_df)
-
-# Melhor modelo de regressão
-rf_reg = RandomForestRegressor(
-    labelCol=TARGET_REG, featuresCol="features",
-    numTrees=100, maxDepth=10, seed=42
-)
-pipeline_reg = Pipeline(stages=[assembler, scaler, rf_reg])
-model_reg    = pipeline_reg.fit(train_df)
-pred_reg     = model_reg.transform(test_df) \
-                         .withColumnRenamed("prediction", "pred_magnitude")
-
-print(f" Modelos treinados")
-print(f"   Treino : {train_df.count():,} | Teste: {test_df.count():,}")
+print(f"Modelos carregados do Registry")
+print(f"   Classificador : {MODEL_NAME_CLF}")
+print(f"   Regressor     : {MODEL_NAME_REG}")
+print(f"   Teste         : {test_df.count():,} registros")
 
 # COMMAND ----------
 
