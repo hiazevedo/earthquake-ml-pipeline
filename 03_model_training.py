@@ -35,6 +35,9 @@ dbutils.fs.mkdirs(MLFLOW_TMP)
 
 os.environ["MLFLOW_DFS_TMP"] = MLFLOW_TMP
 
+# Workaround obrigatório no Databricks Free Edition Serverless
+mlflow.autolog(disable=True)
+
 # Experiment
 EXPERIMENT_NAME = "/Users/{}/earthquake-ml-pipeline".format(
     spark.sql("SELECT current_user()").collect()[0][0]

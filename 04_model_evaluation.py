@@ -26,6 +26,9 @@ plt.rcParams.update({
 MLFLOW_TMP = "/Volumes/earthquake_pipeline/bronze/mlflow_tmp"
 os.environ["MLFLOW_DFS_TMP"] = MLFLOW_TMP
 
+# Workaround obrigatório no Databricks Free Edition Serverless
+mlflow.autolog(disable=True)
+
 EXPERIMENT_NAME = "/Users/{}/earthquake-ml-pipeline".format(
     spark.sql("SELECT current_user()").collect()[0][0]
 )
@@ -294,19 +297,10 @@ with mlflow.start_run(run_name="BestModel_RandomForest_FINAL") as run:
         "reg_r2"      : r2
     })
 
-    # Salvar modelos
-    mlflow.spark.log_model(
-        model_clf, "classifier",
-        registered_model_name=MODEL_NAME_CLF,
-        input_example=input_example,
-        signature=sig_clf
-    )
-    mlflow.spark.log_model(
-        model_reg, "regressor",
-        registered_model_name=MODEL_NAME_REG,
-        input_example=input_example,
-        signature=sig_reg
-    )
+    # Salvar modelos — input_example, signature e registered_model_name removidos
+    # (não suportados no Serverless Free Edition — causam CONFIG_NOT_AVAILABLE)
+    mlflow.spark.log_model(model_clf, "classifier")
+    mlflow.spark.log_model(model_reg, "regressor")
 
     run_id = run.info.run_id
 
